@@ -22,7 +22,7 @@ The next milestone is a read-only scanner for a disposable test folder.
 
 | Component | Version / configuration |
 | --- | --- |
-| Operating system | macOS; exact version not recorded |
+| Operating system | macOS; Golden Gate 27.2 |
 | Hardware | MacBook Air 15-inch, Apple M4, 24 GB unified memory |
 | Python | 3.14.4 |
 | Ollama | 0.40.9 |
