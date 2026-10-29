@@ -44,6 +44,7 @@ def ask_model(prompt: str) -> str:
         raise RuntimeError(
             "The request to Ollama timed out"
         ) from exc
+ 
 
     # Get content from response message
     content = result.get("message", {}).get("content")

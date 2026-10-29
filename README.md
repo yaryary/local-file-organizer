@@ -2,11 +2,26 @@
 
 A Python project for building a local, privacy-first file organizer powered by Ollama. The intended workflow is to inspect files, propose categories and names, preview changes, and apply only approved operations.
 
-The project is being built incrementally. The current implementation verifies communication between Python and a locally running model. File scanning, classification, and filesystem changes are not implemented yet.
+The project is being built incrementally. So far, it includes a local Ollama connection and a read-only directory scanner. The scanner collects file metadata, skips excluded entries, and checks a configurable entry limit. Classification and filesystem changes are not implemented yet.
 
 ## Current status
 
-**M0 — Local model connection:** core connection tests passed.
+### M1 — Read-only scanner
+
+`scanner.py` scans a selected directory and returns metadata for regular files.
+
+It:
+
+- Collects filenames, extensions, sizes, relative paths, and modification timestamps.
+- Scans only the selected directory, without entering subdirectories.
+- Skips hidden entries, symbolic links, and non-file entries.
+- Rejects missing, non-directory, and symbolic-link scan roots.
+- Uses a configurable entry limit, with a default of 100.
+- Counts all immediate entries toward the limit, including entries that are skipped.
+- Checks the limit before sorting entries or collecting file metadata.
+- Returns records in filename order without changing any files.
+
+Manual scanner tests have passed. Automated tests are the next step.
 
 The current `main.py`:
 
@@ -16,20 +31,18 @@ The current `main.py`:
 - Reports connection failures and HTTP errors.
 - Includes timeout and response-parsing handling; those failure cases have not been tested yet.
 
-The next milestone is a read-only scanner for a disposable test folder.
-
 ## Tested environment
 
-| Component | Version / configuration |
-| --- | --- |
-| Operating system | macOS; Golden Gate 27.2 |
-| Hardware | MacBook Air 15-inch, Apple M4, 24 GB unified memory |
-| Python | 3.14.4 |
-| Ollama | 0.40.9 |
-| Model | `qwen3.5:9b` |
-| Ollama installation | Homebrew |
-| API endpoint | `http://localhost:11434/api/chat` |
-| Request settings | `"stream": false`, `"think": false` |
+| Component           | Version / configuration                             |
+| ------------------- | --------------------------------------------------- |
+| Operating system    | macOS;                                              |
+| Hardware            | MacBook Air 15-inch, Apple M4, 24 GB unified memory |
+| Python              | 3.14.4                                              |
+| Ollama              | 0.40.9                                              |
+| Model               | `qwen3.5:9b`                                        |
+| Ollama installation | Homebrew                                            |
+| API endpoint        | `http://localhost:11434/api/chat`                   |
+| Request settings    | `"stream": false`, `"think": false`                 |
 
 These are the versions used during manual testing, not a tested compatibility range. The thinking setting was included in the request; its behavior was not independently evaluated.
 
@@ -120,21 +133,33 @@ Reply: Message received.
 
 The exact response wording can vary. A successful test requires a nonempty reply, not an exact sentence match.
 
-The current script sends a fixed connection-test prompt. It does not scan, read, rename, move, or delete user files.
+`main.py` sends a fixed connection-test prompt. It does not call the scanner or modify files.
+
+### Run the scanner
+
+Create a disposable folder at `sandbox/input` and add a few synthetic test files. Then run:
+
+```bash
+python3 scanner.py
+```
+
+The scanner prints skipped entries and the metadata records it collects. Ollama does not need to be running for this.
+
+The `sandbox/` directory is ignored by Git, so it must be created locally.
 
 ## Manage the Ollama server
 
 These commands apply to the Homebrew-managed installation used for this project:
 
-| Action | Command |
-| --- | --- |
-| Start the server | `brew services start ollama` |
-| Stop the server | `brew services stop ollama` |
-| Restart the server | `brew services restart ollama` |
-| Inspect services | `brew services list` |
-| List installed models | `ollama list` |
-| Show Python version | `python3 --version` |
-| Show Ollama version | `ollama --version` |
+| Action                | Command                        |
+| --------------------- | ------------------------------ |
+| Start the server      | `brew services start ollama`   |
+| Stop the server       | `brew services stop ollama`    |
+| Restart the server    | `brew services restart ollama` |
+| Inspect services      | `brew services list`           |
+| List installed models | `ollama list`                  |
+| Show Python version   | `python3 --version`            |
+| Show Ollama version   | `ollama --version`             |
 
 `ollama stop qwen3.5:9b` unloads the model; it does not stop the API server. A later request can load the model again. Use `brew services stop ollama` when testing server unavailability.
 
@@ -144,13 +169,36 @@ Test date: October 27, 2026.
 
 These tests were performed manually from Terminal using `python3 main.py`. They are not an automated test suite.
 
-| Test | Setup | Observed result | Status |
-| --- | --- | --- | --- |
-| Successful request | Server available; model set to `qwen3.5:9b` | Printed the model name and `Reply: Message received.` | Passed |
-| Repeated request | Run the script again with the same working configuration | Printed `Reply: I have received your message.` | Passed |
-| Server unavailable | Stop the Ollama server, then run the script | Printed the intended connection error | Passed |
-| Recovery after restart | Restart the server, then run the script | Printed `Reply: Message received.` | Passed |
-| Invalid model name | Temporarily set the model to `qwen3.5`, which was unavailable in the tested setup | Printed HTTP 404 and the model-not-found message | Passed |
+| Test                   | Setup                                                                             | Observed result                                       | Status |
+| ---------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------- | ------ |
+| Successful request     | Server available; model set to `qwen3.5:9b`                                       | Printed the model name and `Reply: Message received.` | Passed |
+| Repeated request       | Run the script again with the same working configuration                          | Printed `Reply: I have received your message.`        | Passed |
+| Server unavailable     | Stop the Ollama server, then run the script                                       | Printed the intended connection error                 | Passed |
+| Recovery after restart | Restart the server, then run the script                                           | Printed `Reply: Message received.`                    | Passed |
+| Invalid model name     | Temporarily set the model to `qwen3.5`, which was unavailable in the tested setup | Printed HTTP 404 and the model-not-found message      | Passed |
+
+### Scanner tests
+
+Test date: October 29, 2026.
+
+These tests were run manually using synthetic files under `sandbox/`.
+
+| Test                                                                   | Result                                            |
+| ---------------------------------------------------------------------- | ------------------------------------------------- |
+| Three entries with a limit of four                                     | Passed                                            |
+| Three entries with a limit of three                                    | Passed                                            |
+| Three entries with a limit of two                                      | Passed: expected error, with no partial inventory |
+| Hidden entries, directories, and symbolic links count toward the limit | Passed                                            |
+| Empty directory with a valid limit                                     | Passed: empty inventory                           |
+| Zero and negative limits                                               | Passed: rejected                                  |
+| String, float, and None limits                                         | Passed: rejected                                  |
+| Boolean limit validation                                               | Expected error observed                           |
+| Missing root, file used as root, and symbolic-link root                | Passed: rejected                                  |
+| Ordinary inventory after restoring fixtures                            | Passed                                            |
+| Nested files are not included                                          | Passed                                            |
+| Empty regular file is included                                         | Passed                                            |
+
+Automated tests are not implemented yet. Next, I will turn these manual cases into repeatable tests using Python's `unittest` module and temporary directories.
 
 ### Not yet tested
 
@@ -158,7 +206,6 @@ These tests were performed manually from Terminal using `python3 main.py`. They 
 - Invalid JSON returned by the server.
 - Empty or otherwise unusable response content.
 - Automated regression tests.
-
 
 ## Planned architecture
 
@@ -185,15 +232,22 @@ The model will propose changes. Python will enforce filesystem rules and control
 
 ## Roadmap
 
-| Milestone | Scope | Status |
-| --- | --- | --- |
-| M0 | Local model connection and useful failure messages | Core manual connection tests passed; setup documented here |
-| M1 | Read-only scanner and metadata collection | Next |
-| M2 | Bounded content previews and structured classification | Planned |
-| M3 | Validated dry-run plans | Planned |
-| M4 | Approved execution and recovery records | Planned |
-| M5 | Bounded tool-calling agent loop | Planned |
-| M6 | Evaluation, documentation, and portfolio release | Planned |
+| Milestone | Scope                                                  | Status                                                     |
+| --------- | ------------------------------------------------------ | ---------------------------------------------------------- |
+| M0        | Local model connection and useful failure messages     | Core manual connection tests passed; setup documented here |
+| M1        | Read-only scanner and metadata collection              | Implemented; manual tests passed; automated tests next     |
+| M2        | Bounded content previews and structured classification | Planned                                                    |
+| M3        | Validated dry-run plans                                | Planned                                                    |
+| M4        | Approved execution and recovery records                | Planned                                                    |
+| M5        | Bounded tool-calling agent loop                        | Planned                                                    |
+| M6        | Evaluation, documentation, and portfolio release       | Planned                                                    |
+
+### Next steps
+
+- Add automated tests for the scanner.
+- Run the tests through GitHub Actions.
+- Connect the scanner to the application.
+- Begin bounded file-content previews and classification.
 
 ## Safety and privacy goals
 
@@ -209,4 +263,3 @@ The organizer will be developed against disposable, synthetic files before use w
 - Treating file contents and model responses as untrusted data.
 
 Recovery will be best effort, not a replacement for backups. Keep personal files, real-content fixtures, and private logs out of version control.
-
