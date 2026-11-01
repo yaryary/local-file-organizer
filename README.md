@@ -20,8 +20,9 @@ It:
 - Counts all immediate entries toward the limit, including entries that are skipped.
 - Checks the limit before sorting entries or collecting file metadata.
 - Returns records in filename order without changing any files.
+- Prints a warning and continues scanning when an eligible file’s metadata cannot be read.
 
-Manual scanner tests have passed. Automated tests are the next step.
+Manual scanner tests have passed. The scanner now also has 22 automated regression tests using Python’s `unittest` module and isolated temporary fixtures. All 22 tests passed locally and in a macOS GitHub Actions run. CI failure detection was verified by temporarily introducing an incorrect assertion, confirming the workflow failed, then restoring the assertion and confirming it passed again.
 
 The current `main.py`:
 
@@ -35,7 +36,7 @@ The current `main.py`:
 
 | Component           | Version / configuration                             |
 | ------------------- | --------------------------------------------------- |
-| Operating system    | macOS;                                              |
+| Operating system    | macOS                                              |
 | Hardware            | MacBook Air 15-inch, Apple M4, 24 GB unified memory |
 | Python              | 3.14.4                                              |
 | Ollama              | 0.40.9                                              |
@@ -44,16 +45,16 @@ The current `main.py`:
 | API endpoint        | `http://localhost:11434/api/chat`                   |
 | Request settings    | `"stream": false`, `"think": false`                 |
 
-These are the versions used during manual testing, not a tested compatibility range. The thinking setting was included in the request; its behavior was not independently evaluated.
+The table records the local setup used during manual testing. Automated scanner tests also passed locally with Python 3.14.4 and in GitHub Actions with CPython 3.14.10 on a `macos-latest` runner. These results are not a tested compatibility range.The thinking setting was included in the request; its behavior was not independently evaluated.
 
 ## Requirements
 
 - macOS with Homebrew installed for the setup below.
-- Python 3. The recorded test environment uses Python 3.14.4.
+- Python 3.14 for the documented scanner setup. Automated scanner tests have passed with Python 3.14.4 locally and CPython 3.14.10 in CI. Older Python versions have not been verified.
 - Ollama and the `qwen3.5:9b` model.
 - Internet access for initial installation and model download.
 
-The current Python script uses only standard-library modules. No third-party Python packages are required.
+The current Python scripts and scanner tests use only standard-library modules. No third-party Python packages are required. Ollama and the model are needed for the connection demo, but not for the scanner or scanner tests.
 
 ## Setup
 
@@ -177,7 +178,7 @@ These tests were performed manually from Terminal using `python3 main.py`. They 
 | Recovery after restart | Restart the server, then run the script                                           | Printed `Reply: Message received.`                    | Passed |
 | Invalid model name     | Temporarily set the model to `qwen3.5`, which was unavailable in the tested setup | Printed HTTP 404 and the model-not-found message      | Passed |
 
-### Scanner tests
+### Manual scanner tests
 
 Test date: October 29, 2026.
 
@@ -198,14 +199,69 @@ These tests were run manually using synthetic files under `sandbox/`.
 | Nested files are not included                                          | Passed                                            |
 | Empty regular file is included                                         | Passed                                            |
 
-Automated tests are not implemented yet. Next, I will turn these manual cases into repeatable tests using Python's `unittest` module and temporary directories.
+These manual results are retained as historical evidence. The scanner now also has an automated regression suite, documented below.
 
-### Not yet tested
+## Automated scanner tests
+
+Verification date: November 1, 2026.
+
+The scanner has 22 automated regression tests in `tests/test_scanner.py`, using Python's built-in `unittest` framework. Each test receives a fresh temporary directory with cleanup registered through `addCleanup`.
+
+### Run locally
+
+From the repository root:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The suite uses synthetic temporary fixtures. It does not require Ollama, a downloaded model, network access, or an existing `sandbox/input` directory.
+
+### Coverage scope
+
+The suite checks:
+
+- Empty directories and empty regular files.
+- Below-limit, exact-limit, and over-limit behavior.
+- Invalid limit values and types, including booleans.
+- Missing, regular-file, and symbolic-link scan roots.
+- Hidden entries, directories, and symbolic links counting toward the limit while being excluded from returned records.
+- Nonrecursive scanning and filename ordering.
+- The five expected metadata fields, extension normalization, byte sizes, relative paths, and modification timestamps.
+- Preservation of fixture names, ordinary-file contents, modification times, and symbolic-link targets.
+- A mocked metadata `OSError` producing a printed warning while scanning continues with other valid files.
+- A separate implementation-level check that enumeration stops after observing `limit + 1` entries when the limit is exceeded.
+
+These tests establish the checked behavior for the fixtures used. They do not prove complete filesystem security, resistance to races, or compatibility with every filesystem.
+
+### Verified results
+
+| Environment | Python | Tests | Failures | Errors | Skips | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Local macOS | 3.14.4 | 22 | 0 | 0 | 0 | Passed |
+| GitHub Actions macOS runner | CPython 3.14.10 | 22 | 0 | 0 | 0 | Passed |
+
+### Continuous integration
+
+The workflow in .github/workflows/scanner-tests.yml is configured to run on pushes and pull requests. It also enables manual dispatch once the workflow is available on the repository’s default branch. It uses a `macos-latest` runner, Python 3.14, read-only repository contents permissions, and a five-minute job timeout.
+
+The workflow checks out the repository, sets up Python, and runs:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+It does not install Ollama, download models, start the agent, or upload scan inventories.
+
+Failure detection was verified on the test branch: an intentionally incorrect assertion caused the workflow to fail with one test failure and exit code 1. Restoring the correct assertion returned CI to a passing state.
+
+## Not yet tested
 
 - Request timeout behavior.
 - Invalid JSON returned by the server.
 - Empty or otherwise unusable response content.
-- Automated regression tests.
+- Automated tests for the Ollama connection and response-handling code.
+- Scanner compatibility with older Python versions and non-macOS runners.
 
 ## Planned architecture
 
@@ -228,14 +284,14 @@ Dry-run preview and explicit approval
 Approved operations and a recovery manifest
 ```
 
-The model will propose changes. Python will enforce filesystem rules and control execution. These components are planned, not current capabilities.
+The model will propose changes. Python will enforce filesystem rules and control execution. The read-only scanner is implemented. Content previews, model-driven classification, path validation for proposed changes, dry-run approval, execution, and recovery records remain planned. The model will propose changes, while Python will enforce filesystem rules and control execution.
 
 ## Roadmap
 
 | Milestone | Scope                                                  | Status                                                     |
 | --------- | ------------------------------------------------------ | ---------------------------------------------------------- |
 | M0        | Local model connection and useful failure messages     | Core manual connection tests passed; setup documented here |
-| M1        | Read-only scanner and metadata collection              | Implemented; manual tests passed; automated tests next     |
+| M1        | Read-only scanner and metadata collection              | Implemented; manual tests and 22 automated tests passed locally and in macOS CI|
 | M2        | Bounded content previews and structured classification | Planned                                                    |
 | M3        | Validated dry-run plans                                | Planned                                                    |
 | M4        | Approved execution and recovery records                | Planned                                                    |
@@ -244,8 +300,7 @@ The model will propose changes. Python will enforce filesystem rules and control
 
 ### Next steps
 
-- Add automated tests for the scanner.
-- Run the tests through GitHub Actions.
+- Finish documenting the scanner test evidence and merge the scanner tests/CI pull request.
 - Connect the scanner to the application.
 - Begin bounded file-content previews and classification.
 

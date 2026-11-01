@@ -1,0 +1,23 @@
+name: Scanner Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scanner-tests:
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Set up Python 
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Run scanner tests
+        run: python -m unittest discover -s tests -v
