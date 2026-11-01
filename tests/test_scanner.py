@@ -161,7 +161,7 @@ class TestScanDirectory(unittest.TestCase):
         result = scan_directory(self.scan_root)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["name"], "empty.txt")
-        self.assertEqual(result[0]["size_bytes"], 1)
+        self.assertEqual(result[0]["size_bytes"], 0)
 
     def test_records_are_returned_in_filename_order(self) -> None:
         gamma = self.scan_root / "gamma.md"
