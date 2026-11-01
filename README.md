@@ -36,7 +36,7 @@ The current `main.py`:
 
 | Component           | Version / configuration                             |
 | ------------------- | --------------------------------------------------- |
-| Operating system    | macOS                                              |
+| Operating system    | macOS                                               |
 | Hardware            | MacBook Air 15-inch, Apple M4, 24 GB unified memory |
 | Python              | 3.14.4                                              |
 | Ollama              | 0.40.9                                              |
@@ -45,7 +45,7 @@ The current `main.py`:
 | API endpoint        | `http://localhost:11434/api/chat`                   |
 | Request settings    | `"stream": false`, `"think": false`                 |
 
-The table records the local setup used during manual testing. Automated scanner tests also passed locally with Python 3.14.4 and in GitHub Actions with CPython 3.14.10 on a `macos-latest` runner. These results are not a tested compatibility range.The thinking setting was included in the request; its behavior was not independently evaluated.
+The table records the local setup used during manual testing. Automated scanner tests also passed locally with Python 3.14.4 and in GitHub Actions with CPython 3.14.10 on a `macos-latest` runner. These results are not a tested compatibility range. The thinking setting was included in the request; its behavior was not independently evaluated.
 
 ## Requirements
 
@@ -236,14 +236,16 @@ These tests establish the checked behavior for the fixtures used. They do not pr
 
 ### Verified results
 
-| Environment | Python | Tests | Failures | Errors | Skips | Result |
-| --- | --- | --- | --- | --- | --- | --- |
-| Local macOS | 3.14.4 | 22 | 0 | 0 | 0 | Passed |
-| GitHub Actions macOS runner | CPython 3.14.10 | 22 | 0 | 0 | 0 | Passed |
+| Environment                 | Python          | Tests | Failures | Errors | Skips | Result |
+| --------------------------- | --------------- | ----- | -------- | ------ | ----- | ------ |
+| Local macOS                 | 3.14.4          | 22    | 0        | 0      | 0     | Passed |
+| GitHub Actions macOS runner | CPython 3.14.10 | 22    | 0        | 0      | 0     | Passed |
+
+The scanner tests, CI workflow, and testing documentation were merged into `main` through [pull request #1](https://github.com/yaryary/local-file-organizer/pull/1). After syncing the merged changes, all 22 tests passed again locally with no failures, errors, or skipped tests.
 
 ### Continuous integration
 
-The workflow in .github/workflows/scanner-tests.yml is configured to run on pushes and pull requests. It also enables manual dispatch once the workflow is available on the repository’s default branch. It uses a `macos-latest` runner, Python 3.14, read-only repository contents permissions, and a five-minute job timeout.
+The workflow in `.github/workflows/scanner-tests.yml` is configured to run on pushes and pull requests and includes a manual-dispatch trigger. It uses a `macos-latest` runner, Python 3.14, read-only repository contents permissions, and a five-minute job timeout.
 
 The workflow checks out the repository, sets up Python, and runs:
 
@@ -254,6 +256,8 @@ python -m unittest discover -s tests -v
 It does not install Ollama, download models, start the agent, or upload scan inventories.
 
 Failure detection was verified on the test branch: an intentionally incorrect assertion caused the workflow to fail with one test failure and exit code 1. Restoring the correct assertion returned CI to a passing state.
+
+[Verified passing pull-request CI run](https://github.com/yaryary/local-file-organizer/actions/runs/41304282532)
 
 ## Not yet tested
 
@@ -284,25 +288,26 @@ Dry-run preview and explicit approval
 Approved operations and a recovery manifest
 ```
 
-The model will propose changes. Python will enforce filesystem rules and control execution. The read-only scanner is implemented. Content previews, model-driven classification, path validation for proposed changes, dry-run approval, execution, and recovery records remain planned. The model will propose changes, while Python will enforce filesystem rules and control execution.
+The read-only scanner is implemented. Content previews, model-driven classification, path validation for proposed changes, dry-run approval, execution, and recovery records remain planned. The model will propose changes, while Python will enforce filesystem rules and control execution.
 
 ## Roadmap
 
-| Milestone | Scope                                                  | Status                                                     |
-| --------- | ------------------------------------------------------ | ---------------------------------------------------------- |
-| M0        | Local model connection and useful failure messages     | Core manual connection tests passed; setup documented here |
-| M1        | Read-only scanner and metadata collection              | Implemented; manual tests and 22 automated tests passed locally and in macOS CI|
-| M2        | Bounded content previews and structured classification | Planned                                                    |
-| M3        | Validated dry-run plans                                | Planned                                                    |
-| M4        | Approved execution and recovery records                | Planned                                                    |
-| M5        | Bounded tool-calling agent loop                        | Planned                                                    |
-| M6        | Evaluation, documentation, and portfolio release       | Planned                                                    |
+| Milestone | Scope                                                  | Status                                                                          |
+| --------- | ------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| M0        | Local model connection and useful failure messages     | Core manual connection tests passed; setup documented here                      |
+| M1        | Read-only scanner and metadata collection              | Implemented; manual tests and 22 automated tests passed locally and in macOS CI |
+| M2        | Bounded content previews and structured classification | Planned                                                                         |
+| M3        | Validated dry-run plans                                | Planned                                                                         |
+| M4        | Approved execution and recovery records                | Planned                                                                         |
+| M5        | Bounded tool-calling agent loop                        | Planned                                                                         |
+| M6        | Evaluation, documentation, and portfolio release       | Planned                                                                         |
 
 ### Next steps
 
-- Finish documenting the scanner test evidence and merge the scanner tests/CI pull request.
-- Connect the scanner to the application.
-- Begin bounded file-content previews and classification.
+- Connect the read-only scanner to the application without adding file modification behavior.
+- Add bounded file-content previews with explicit limits on file size and extracted text.
+- Use metadata and previews to develop structured, local-model classification.
+- Add tests for new preview and classification behavior as those features are implemented.
 
 ## Safety and privacy goals
 
